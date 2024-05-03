@@ -7,11 +7,25 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls'
 import { ZonedDateTime, ZoneId } from '@js-joda/core'
 import '@js-joda/timezone'
 import EarthMoonAnimation from '../assets/EarthMoonAnimation.json'
+import cartesianPointsAll from '../assets/cartesianPointsAll.json';
+import categoriesData from '@/assets/cartesianPointsAll.json'; 
+
 import { Vue3Lottie } from 'vue3-lottie'
+// import categoriesData from '../assets/latlonAll.json'
+console.log(categoriesData); // Check if data is loaded
+
+
+
+// import cartesianPoints from '../assets/cartesianPoints.json'
 
 // Mode will be used to decide if we want our model to create images and perform registration
 // or if we want it to render to the page for the user to interact with
 const props = defineProps(['mode'])
+
+// Import and use all the cartesianPointsAll file (this is next years problem teehee :3 )
+// If they want to pass this data to another module, they can pass this reactive obj (nerds)
+const pointsData = reactive(cartesianPointsAll);
+
 
 // Processing will be used to display the loading animation gif
 let processing = ref(true)
@@ -78,13 +92,13 @@ const moonLayer = new THREE.Mesh(
         )
     })
 )
-const person = new THREE.Mesh(
+const person = new THREE.Mesh( // keep
     new THREE.SphereGeometry(0.05),
     new THREE.MeshBasicMaterial({
         color: 0xe62117
     })
 )
-const nearestPoint = new THREE.Mesh(
+const nearestPoint = new THREE.Mesh( // keep
     new THREE.SphereGeometry(0.03),
     new THREE.MeshBasicMaterial({
         color: 0xe62117
@@ -298,16 +312,110 @@ const togglePlay = () => {
     }
 }
 
+// Visibility of craters, maria, and landing sites
+const visibility = reactive({
+    crater: false,
+    maria: true,
+    landing: false
+});
+
+
+// Add craters, maria, and landing sites to the scene
+const addPoints = (category, color) => {
+    if (visibility[category]) {
+        moon.children.filter(child => child.userData.category === category).forEach(child => moon.remove(child));  // Clear previous points of the same category
+
+        Object.values(pointsData[category]).forEach(point => {
+            const pointObj = new THREE.Mesh(
+                new THREE.SphereGeometry(0.02),  // Create a small sphere for each point
+                new THREE.MeshBasicMaterial({ color: color })
+            );
+            pointObj.userData.category = category;  // Tag each mesh with its category for easy identification
+            pointObj.position.set(
+                point.x / 1000,  
+                point.z / 1000,  
+                -point.y / 1000  // Inverting y coordinate
+            );
+            moon.add(pointObj);
+        });
+    } else {
+        // Remove the points from the scene if visibility is turned off
+        moon.children.filter(child => child.userData.category === category).forEach(child => moon.remove(child));
+    }
+};
+
+// Toggles visibility and updates the scene
+const toggleCategory = (category, color) => {
+    visibility[category] = !visibility[category];
+    addPoints(category, color);
+};
+
 onMounted(async () => {
+    // Are you coordinates coordinating?
+    // Check:
+    // (R, 0, 0)
+    // (0, R, 0)
+    // (0, 0, R)
+    
+    // 0xFF0000 - red
+    // 0x00FF00 - green
+    // 0x0000FF - blue
+    
+    const xCoordinate = new THREE.Mesh(
+        new THREE.SphereGeometry(0.03), 
+        new THREE.MeshBasicMaterial({
+            color: 0xFF0000 // red
+    }))
+
+    xCoordinate.position.set(
+        1.734,
+        0,
+        0
+    )
+    
+
+    const yCoordinate = new THREE.Mesh(
+        new THREE.SphereGeometry(0.03), 
+        new THREE.MeshBasicMaterial({
+            color: 0x00FF0 // green
+    }))
+
+    yCoordinate.position.set(
+        0,
+        1.734,
+        0
+    )
+
+    const zCoordinate = new THREE.Mesh(
+        new THREE.SphereGeometry(0.03), 
+        new THREE.MeshBasicMaterial({
+            color: 0x00FF00 // blue
+    }))
+
+    zCoordinate.position.set(
+        0,
+        0,
+        -1.734 // Inverting y coordinate because of the way the moon is oriented
+    )
+
+    moon.add(xCoordinate)
+    moon.add(yCoordinate)
+    moon.add(zCoordinate)
+
+    // addPoints('crater', 0xFFF2CC); // Yellow for craters
+    addPoints('maria', 0xFF00FF); // Magenta for maria
+    // addPoints('landing', 0x00FFFF); // Cyan for landing
+    
     // These objects will be added to scene despite the given mode
     scene.add(light)
     scene.add(moon)
     scene.add(earth)
     earth.add(person)
-    moonLayer.add(nearestPoint)
-    moonLayer.add(copernicusPoint)
-    moonLayer.add(tychoPoint)
-    moonLayer.add(crisiumPoint)
+
+    // moonLayer.add(nearestPoint)
+    // moonLayer.add(copernicusPoint)
+    // moonLayer.add(tychoPoint)
+    // moonLayer.add(crisiumPoint)
 
     // Their positions will be fetched and set at least once
     await getPositions()
@@ -404,58 +512,116 @@ onMounted(async () => {
     }
 })
 </script>
-
 <template>
-    <div v-if="processing">
-        <Vue3Lottie :animationData="EarthMoonAnimation" :height="400" :width="400" />
+<!-- Sidebar for categories -->
+<div class="sidebar">
+    <div class="menu">
+        <p class="menu-label">
+            Categories
+        </p>
+        <ul class="menu-list">
+            <li v-for="(items, category) in categoriesData" :key="category">
+                <p>{{ category.charAt(0).toUpperCase() + category.slice(1).replace('_', ' ') }}</p>
+                <ul>
+                    <li v-for="(coords, name) in items" :key="name">
+                        <div class="button-like" @click="handleClick(coords.x.toFixed(2), coords.y.toFixed(2), coords.z.toFixed(2))">
+                            <strong>{{ name }}:</strong>
+                            <div>x: {{ coords.x.toFixed(2) }}</div>
+                            <div>y: {{ coords.y.toFixed(2) }}</div>
+                            <div>z: {{ coords.z.toFixed(2) }}</div>
+                        </div>
+                    </li>
+                </ul>
+            </li>
+        </ul>
     </div>
-    <div v-else>
-        <div class="columns is-centered">
-            <div class="column has-text-centered">
-                <button class="button" @click="toggleAnchor()">
-                    Anchor {{ modelData.anchor === 'earth' ? 'Moon' : 'Earth' }}
-                </button>
-                <button class="button" @click="toggleLight()">
-                    Set {{ modelData.light === 'real' ? 'Ambient' : 'Real' }} Lighting
-                </button>
-                <button class="button" @click="toggleTexture()">
-                    Set {{ modelData.texture === 'real' ? 'Layer' : 'Real' }} Texture
-                </button>
-            </div>
-        </div>
-        <div class="columns is-centered is-vcentered">
-            <div class="column has-text-centered is-1">
-                <button
-                    class="button"
-                    :class="modelData.intervalId === -1 ? 'play' : 'pause'"
-                    @click="togglePlay()"
-                >
-                    {{ modelData.intervalId === -1 ? 'Play' : 'Pause' }}
-                </button>
-            </div>
-            <div class="column has-text-centered is-1">
-                <input class="input" type="number" v-model="modelData.time.increment" />
-            </div>
-            <div class="column has-text-centered is-1">
-                <select class="input" v-model="modelData.time.multiplier">
-                    <option value="1">Hours</option>
-                    <option value="24">Days</option>
-                </select>
-            </div>
-        </div>
-        <div class="columns is-centered is-vcentered">
-            <div class="column has-text-centered is-2">
-                <p>
-                    {{ formattedDate() }}
-                </p>
-            </div>
-        </div>
-    </div>
+</div>
 
-    <div id="moon-canvas"></div>
+
+    <!-- Main content shifted to the right -->
+    <div class="main-content">
+        <!-- Display animation while processing -->
+        <div v-if="processing">
+            <Vue3Lottie :animationData="EarthMoonAnimation" :height="400" :width="400" />
+        </div>
+        <!-- Show controls when not processing -->
+        <div v-else>
+            <!-- Buttons to toggle categories: Craters, Maria, Landing Sites -->
+            <div class="columns is-centered">
+                <div class="column has-text-centered">
+                    <button class="button" @click="toggleCategory('crater', 0xFFFF00)">
+                        Toggle Craters
+                    </button>
+                    <button class="button" @click="toggleCategory('maria', 0xFF00FF)">
+                        Toggle Maria
+                    </button>
+                    <button class="button" @click="toggleCategory('landing', 0x00FFFF)">
+                        Toggle Landing Sites
+                    </button>
+                </div>
+            </div>
+            <!-- Buttons to toggle anchor, light, and texture settings -->
+            <div class="columns is-centered">
+                <div class="column has-text-centered">
+                    <button class="button" @click="toggleAnchor()">
+                        Anchor {{ modelData.anchor === 'earth' ? 'Moon' : 'Earth' }}
+                    </button>
+                    <button class="button" @click="toggleLight()">
+                        Set {{ modelData.light === 'real' ? 'Ambient' : 'Real' }} Lighting
+                    </button>
+                    <button class="button" @click="toggleTexture()">
+                        Set {{ modelData.texture === 'real' ? 'Layer' : 'Real' }} Texture
+                    </button>
+                </div>
+            </div>
+            <!-- Media control buttons with time settings -->
+            <div class="columns is-centered is-vcentered">
+                <div class="column has-text-centered is-1">
+                    <button
+                        class="button"
+                        :class="modelData.intervalId === -1 ? 'play' : 'pause'"
+                        @click="togglePlay()">
+
+                        {{ modelData.intervalId === -1 ? 'Play' : 'Pause' }}
+                    </button>
+                </div>
+                <div class="column has-text-centered is-1">
+                    <input class="input" type="number" v-model="modelData.time.increment" />
+                </div>
+                <div class="column has-text-centered is-1">
+                    <select class="input" v-model="modelData.time.multiplier">
+                        <option value="1">Hours</option>
+                        <option value="24">Days</option>
+                    </select>
+                </div>
+            </div>
+            <!-- Display formatted date -->
+            <div class="columns is-centered is-vcentered">
+                <div class="column has-text-centered is-2">
+                    <p>{{ formattedDate() }}</p>
+                </div>
+            </div>
+        </div>
+        <!-- Canvas for Moon simulation -->
+        <div id="moon-canvas"></div>
+    </div>
 </template>
 
 <style scoped>
+.sidebar {
+    position: fixed;
+    left: 0;
+    width: 200px;
+    height: 100vh;
+    overflow-y: auto;
+    background-color: #f5f5f5;
+    border-right: 1px solid #d3d3d3;
+}
+
+.main-content {
+    margin-left: 200px; /* Adjusted to make space for the sidebar */
+}
+
 .input {
     margin: -1rem 0.25rem;
 }
@@ -489,5 +655,12 @@ button:hover {
 
 #moon-canvas {
     margin-top: 2rem;
+}
+
+@media (max-width: 768px) {
+    .columns.is-centered {
+        flex-direction: column;
+        align-items: center;
+    }
 }
 </style>
